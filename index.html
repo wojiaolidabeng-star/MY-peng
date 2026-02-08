@@ -1,0 +1,243 @@
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..f128d51ce07ac9d41cfc7d90f619ce0c17035c3c
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,233 @@
++<!DOCTYPE html>
++<html lang="zh-CN">
++<head>
++  <meta charset="UTF-8" />
++  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++  <title>牙齿美白前后对比</title>
++  <style>
++    :root {
++      color-scheme: light;
++      font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
++      background: #f5f8fb;
++      color: #1f2a37;
++    }
++
++    * {
++      box-sizing: border-box;
++    }
++
++    body {
++      margin: 0;
++      padding: 48px 16px 64px;
++      display: flex;
++      flex-direction: column;
++      align-items: center;
++      gap: 24px;
++    }
++
++    header {
++      max-width: 820px;
++      text-align: center;
++    }
++
++    h1 {
++      font-size: 32px;
++      margin: 0 0 12px;
++    }
++
++    p {
++      margin: 0;
++      line-height: 1.6;
++      color: #4b5563;
++    }
++
++    .comparison-card {
++      width: min(900px, 100%);
++      background: #ffffff;
++      border-radius: 20px;
++      padding: 24px;
++      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
++      display: flex;
++      flex-direction: column;
++      gap: 20px;
++    }
++
++    .comparison-wrapper {
++      position: relative;
++      width: 100%;
++      aspect-ratio: 16 / 9;
++      border-radius: 16px;
++      overflow: hidden;
++      background: #e2e8f0;
++    }
++
++    .comparison-image {
++      position: absolute;
++      inset: 0;
++      width: 100%;
++      height: 100%;
++      object-fit: cover;
++    }
++
++    .comparison-image.after {
++      clip-path: inset(0 0 0 50%);
++      transition: clip-path 0.05s linear;
++    }
++
++    .label {
++      position: absolute;
++      bottom: 16px;
++      padding: 6px 12px;
++      font-size: 14px;
++      color: #fff;
++      border-radius: 999px;
++      background: rgba(15, 23, 42, 0.75);
++      backdrop-filter: blur(4px);
++    }
++
++    .label.before {
++      left: 16px;
++    }
++
++    .label.after {
++      right: 16px;
++    }
++
++    .slider-track {
++      position: absolute;
++      top: 0;
++      bottom: 0;
++      left: 50%;
++      width: 2px;
++      background: rgba(255, 255, 255, 0.9);
++      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.15);
++      transform: translateX(-50%);
++      pointer-events: none;
++    }
++
++    .slider-handle {
++      position: absolute;
++      top: 50%;
++      left: 50%;
++      transform: translate(-50%, -50%);
++      width: 36px;
++      height: 36px;
++      border-radius: 50%;
++      border: 2px solid #ffffff;
++      background: #3b82f6;
++      display: grid;
++      place-items: center;
++      color: #ffffff;
++      font-size: 18px;
++      font-weight: bold;
++      pointer-events: none;
++      box-shadow: 0 8px 16px rgba(59, 130, 246, 0.35);
++    }
++
++    .slider-input {
++      width: 100%;
++      margin: 0;
++      appearance: none;
++      height: 28px;
++      background: transparent;
++      cursor: pointer;
++    }
++
++    .slider-input::-webkit-slider-thumb {
++      appearance: none;
++      width: 28px;
++      height: 28px;
++      border-radius: 50%;
++      border: 2px solid #ffffff;
++      background: transparent;
++      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
++    }
++
++    .slider-input::-moz-range-thumb {
++      width: 28px;
++      height: 28px;
++      border-radius: 50%;
++      border: 2px solid #ffffff;
++      background: transparent;
++      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
++    }
++
++    footer {
++      text-align: center;
++      font-size: 13px;
++      color: #6b7280;
++    }
++
++    @media (max-width: 600px) {
++      h1 {
++        font-size: 24px;
++      }
++
++      .comparison-card {
++        padding: 16px;
++      }
++
++      .label {
++        font-size: 12px;
++      }
++    }
++  </style>
++</head>
++<body>
++  <header>
++    <h1>牙齿美白前后对比</h1>
++    <p>拖动滑块，直观查看美白前后的差异效果。</p>
++  </header>
++
++  <section class="comparison-card">
++    <div class="comparison-wrapper" id="comparison">
++      <img
++        class="comparison-image before"
++        src="https://images.unsplash.com/photo-1522336572468-97b06e8ef143?auto=format&fit=crop&w=1600&q=80"
++        alt="美白前的牙齿（占位图）"
++      />
++      <img
++        class="comparison-image after"
++        src="https://images.unsplash.com/photo-1522336572468-97b06e8ef143?auto=format&fit=crop&w=1600&q=80&sat=-100"
++        alt="美白后的牙齿（占位图）"
++        id="after-image"
++      />
++      <div class="slider-track" id="slider-track"></div>
++      <div class="slider-handle" id="slider-handle">⇆</div>
++      <span class="label before">美白前</span>
++      <span class="label after">美白后</span>
++    </div>
++    <input
++      class="slider-input"
++      type="range"
++      min="0"
++      max="100"
++      value="50"
++      aria-label="拖动查看美白前后对比"
++      id="slider"
++    />
++  </section>
++
++  <footer>效果因人而异，具体方案请咨询专业医生。</footer>
++
++  <script>
++    const slider = document.getElementById("slider");
++    const afterImage = document.getElementById("after-image");
++    const sliderTrack = document.getElementById("slider-track");
++    const sliderHandle = document.getElementById("slider-handle");
++
++    const updateComparison = (value) => {
++      const percentage = Math.min(100, Math.max(0, value));
++      afterImage.style.clipPath = `inset(0 0 0 ${percentage}%)`;
++      sliderTrack.style.left = `${percentage}%`;
++      sliderHandle.style.left = `${percentage}%`;
++    };
++
++    slider.addEventListener("input", (event) => {
++      updateComparison(event.target.value);
++    });
++
++    updateComparison(slider.value);
++  </script>
++</body>
++</html>
+ 
+EOF
+)
