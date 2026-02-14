@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>灵镜 AI | 终极演示</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #030712; /* 极夜黑 */
+            --accent-color: #00d2ff; /* 极光蓝 */
+            --text-primary: #ffffff;
+            --text-secondary: #8ca8d9;
+            --glass-bg: rgba(10, 20, 40, 0.7);
+            --glass-border: rgba(0, 210, 255, 0.2);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 初始禁止滚动 */
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100%;
+        }
+
+        /* --- 3D 开场层 (Intro Layer) --- */
+        #intro-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 100; /* 置于最顶层 */
+            transition: transform 1.5s cubic-bezier(0.645, 0.045, 0.355, 1.000), opacity 1s ease-in-out;
+        }
+
+        #intro-layer.hidden {
+            transform: scale(1.5); /* 穿越效果：放大并消失 */
+            opacity: 0;
+            pointer-events: none; /* 让点击穿透 */
+        }
+
+        #canvas-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .intro-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 101;
+            pointer-events: none; /* 文字不挡鼠标 */
+        }
+
+        h1.intro-title {
+            font-size: 4rem;
+            font-weight: 200;
+            letter-spacing: 10px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(0, 210, 255, 0.5);
+        }
+
+        /* 启动按钮 */
+        .enter-button-container {
+            margin-top: 60px;
+            pointer-events: auto; /* 按钮需要能点击 */
+            cursor: pointer;
+        }
+
+        .enter-btn {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            letter-spacing: 4px;
+            color: var(--accent-color);
+            background: rgba(0, 210, 255, 0.1);
+            border: 1px solid var(--accent-color);
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            animation: pulse 2s infinite;
+        }
+
+        .enter-btn:hover {
+            background: var(--accent-color);
+            color: var(--bg-color);
+            box-shadow: 0 0 50px rgba(0, 210, 255, 0.8);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(0, 210, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 210, 255, 0); }
+        }
+
+
+        /* --- 内容展示层 (Content Layer) --- */
+        #content-layer {
+            position: relative;
+            z-index: 1;
+            opacity: 0; /* 初始隐藏 */
+            transition: opacity 2s ease-in-out 1s; /* 延迟显示 */
+            height: 100vh;
+            overflow-y: scroll; /* 允许滚动 */
+            scroll-snap-type: y mandatory; /* 全屏吸附滚动 */
+        }
+
+        #content-layer.visible {
+            opacity: 1;
+        }
+
+        /* 每一屏的内容卡片 */
+        section.slide {
+            height: 100vh;
+            scroll-snap-align: start;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* 玻璃卡片样式升级版 */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            padding: 4rem;
+            border-radius: 30px;
+            max-width: 900px;
+            text-align: left;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.6);
+            transform: translateY(50px);
+            opacity: 0;
+            transition: all 0.8s ease-out;
+        }
+        
+        /* 当卡片进入视野时的动画 */
+        section.slide:hover .glass-panel,
+        section.slide:focus-within .glass-panel {
+             transform: translateY(0);
+             opacity: 1;
+        }
+
+        .phase-tag {
+            color: var(--accent-color);
+            font-family: monospace;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        h2 {
+            font-size: 3rem;
+            margin: 0 0 1.5rem 0;
+            font-weight: 300;
+        }
+
+        p {
+            font-size: 1.3rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+        
+        /* 背景装饰 */
+        .bg-grid {
+            position: absolute;
+            top:0; left:0; width:100%; height:100%;
+            background-image: 
+                linear-gradient(rgba(0, 210, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 210, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="intro-layer">
+        <div id="canvas-container"></div>
+        <div class="intro-ui">
+            <h1 class="intro-title">灵镜 AI</h1>
+            <p style="letter-spacing: 5px; color: var(--accent-color);">M3 NEURAL ENGINE READY</p>
+            <div class="enter-button-container" onclick="enterSystem()">
+                <button class="enter-btn">启动数字孪生系统</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="content-layer">
+        
+        <section class="slide">
+            <div class="bg-grid"></div>
+            <div class="glass-panel">
+                <span class="phase-tag">PHASE I // DEEP SCAN</span>
+                <h2>灵镜 · 探源</h2>
+                <p>这不是一张照片，而是一次深度的数字解构。<br>AI 算法穿透牙釉质，识别肉眼不可见的微小龋坏、根管异变及骨质密度流失。<br><strong>隐患，在此无所遁形。</strong></p>
+            </div>
+        </section>
+
+        <section class="slide">
+            <div class="bg-grid" style="background-size: 100px 100px; opacity: 0.5;"></div>
+            <div class="glass-panel" style="border-color: rgba(255, 100, 200, 0.3);">
+                <span class="phase-tag" style="color: #ff64c8;">PHASE II // DIGITAL TWIN</span>
+                <h2>灵镜 · 孪生</h2>
+                <p>我们在云端为您创建了一个 1:1 的数字口腔分身。<br>所有的力学分析、方案试错，都将率先在这个绝对安全的“虚拟实验室”中完成。<br><strong>这是属于您的终身数字资产。</strong></p>
+            </div>
+        </section>
+
+       <section class="slide">
+             <div class="bg-grid" style="background-size: 30px 30px; opacity: 0.3;"></div>
+            <div class="glass-panel" style="border-color: rgba(100, 255, 150, 0.3);">
+                <span class="phase-tag" style="color: #64ff96;">PHASE III // AI FABRICATION</span>
+                <h2>灵镜 · 铸真</h2>
+                <p>真正的算力，不应只停留在屏幕里，而是降临到现实。<br>
+                基于您的数字分身，AI 将自动生成<strong style="color:#fff;">微米级靶向种植导板</strong>与<strong style="color:#fff;">即刻 3D 打印临时冠</strong>。<br>
+                前者如同自动驾驶的雷达，让手术路径分毫不差；后者让您在走出诊室的那一刻，便已重获完整笑容。<br>
+                <strong>用极致算力，接管所有的不确定性。</strong></p>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // --- Three.js 3D 粒子代码 (保持不变) ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particlesCount = 18000; // 增加粒子数量
+        const posArray = new Float32Array(particlesCount * 3);
+        for(let i = 0; i < particlesCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * (Math.random() * 12);
+        }
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const material = new THREE.PointsMaterial({
+            size: 0.012, color: 0x00d2ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending
+        });
+        const particlesMesh = new THREE.Points(particlesGeometry, material);
+        scene.add(particlesMesh);
+        camera.position.z = 5;
+
+        let mouseX = 0; mouseY = 0;
+        document.addEventListener('mousemove', (event) => {
+            mouseX = event.clientX / window.innerWidth - 0.5;
+            mouseY = event.clientY / window.innerHeight - 0.5;
+        });
+
+        const animate = () => {
+            requestAnimationFrame(animate);
+            particlesMesh.rotation.y += 0.0015;
+            particlesMesh.rotation.x += 0.0005;
+            particlesMesh.rotation.y += mouseX * 0.03;
+            particlesMesh.rotation.x += mouseY * 0.03;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 交互逻辑：点击穿越 ---
+        function enterSystem() {
+            // 1. 隐藏 3D 开场层 (执行 CSS 动画)
+            document.getElementById('intro-layer').classList.add('hidden');
+            
+            // 2. 显示内容层
+            document.getElementById('content-layer').classList.add('visible');
+            
+            // 3. 允许身体滚动
+            document.body.style.overflow = 'auto';
+
+            // (可选) 让 3D 粒子在穿越时加速旋转，增加视觉冲击力
+            gsap.to(particlesMesh.rotation, {duration: 1.5, y: "+=3", ease: "power3.in"});
+            gsap.to(camera.position, {duration: 1.5, z: 1, ease: "power3.in"});
+        }
+
+        // 简单的触发卡片动画脚本
+        const slides = document.querySelectorAll('.slide');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.querySelector('.glass-panel').style.opacity = 1;
+                    entry.target.querySelector('.glass-panel').style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.5 });
+
+        slides.forEach(slide => {
+            observer.observe(slide);
+        });
+
+    </script>
+</body>
+</html>
