@@ -2,30 +2,34 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>李医生口腔诊室 · 未来影像中心</title>
+    <title>李医生口腔诊室 · 数字影像中心</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
-        /* 背景粒子层 */
         #bg-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        /* 3D 旋转核心层 */
         #three-container { position: absolute; top: 0; left: 0; width: 50%; height: 100%; z-index: 2; pointer-events: none; }
-        /* 强制覆盖 SDK 样式，确保李医生乖乖待在右边 */
+        /* 保持在右侧 */
         .coze-web-sdk-container { right: 20px !important; bottom: 20px !important; left: auto !important; transform: none !important; }
         .coze-web-sdk-bubble-icon { display: none !important; }
     </style>
 </head>
 <body>
+    <script>
+        // 【第一道保险：物理抹除】在一切开始前，强行清除浏览器对本域名的所有记忆
+        localStorage.clear();
+        sessionStorage.clear();
+        console.log("🧨 浏览器缓存已物理抹除，记忆彻底断根");
+    </script>
+
     <canvas id="bg-canvas"></canvas>
     <div id="three-container"></div>
 
     <script>
-        // 1. 【核心逻辑】绝对失忆补丁：每次刷新都生成全新 ID
+        // 1. 生成绝对随机 ID
         const freshId = 'patient_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        console.log("✅ 隐私隔离启动，患者ID:", freshId);
 
-        // 2. 绘制 3D 旋转“数字牙齿”核心
+        // 2. 重新打造 3D 核心：扫描环 + 粒子云 (代替那坨乱绳子)
         const container = document.getElementById('three-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -33,47 +37,52 @@
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(renderer.domElement);
 
-        // 创建一个看起来像“科幻牙齿”的复杂几何体
-        const geometry = new THREE.TorusKnotGeometry(1.5, 0.4, 100, 16); 
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x00c3ff, wireframe: true, transparent: true, opacity: 0.6 
-        });
-        const toothCore = new THREE.Mesh(geometry, material);
-        scene.add(toothCore);
-        camera.position.z = 5;
+        const group = new THREE.Group();
+        // 创建核心粒子云
+        const pointsGeom = new THREE.SphereGeometry(1.2, 32, 32);
+        const pointsMat = new THREE.PointsMaterial({ color: 0x00c3ff, size: 0.05, transparent: true, opacity: 0.8 });
+        const corePoints = new THREE.Points(pointsGeom, pointsMat);
+        group.add(corePoints);
+
+        // 创建两个交叉旋转的扫描环
+        const ringGeom = new THREE.TorusGeometry(2, 0.02, 16, 100);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00c3ff, transparent: true, opacity: 0.5 });
+        const ring1 = new THREE.Mesh(ringGeom, ringMat);
+        const ring2 = new THREE.Mesh(ringGeom, ringMat);
+        ring2.rotation.x = Math.PI / 2;
+        group.add(ring1);
+        group.add(ring2);
+        
+        scene.add(group);
+        camera.position.z = 6;
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-            toothCore.rotation.y += 0.01; // 持续旋转
-            toothCore.rotation.x += 0.005;
+            group.rotation.y += 0.01;
+            ring1.rotation.y += 0.02;
+            ring2.rotation.x -= 0.02;
+            corePoints.rotation.z += 0.005;
             renderer.render(scene, camera);
         }
         animate3D();
 
-        // 3. 背景蓝点粒子（与你截图风格一致）
+        // 3. 背景蓝点粒子 (保持冷静风格)
         const bgCanvas = document.getElementById('bg-canvas');
         const ctx = bgCanvas.getContext('2d');
         let dots = [];
         function initDots() {
-            bgCanvas.width = window.innerWidth;
-            bgCanvas.height = window.innerHeight;
-            for(let i=0; i<150; i++) dots.push({
-                x: Math.random()*bgCanvas.width, y: Math.random()*bgCanvas.height,
-                v: Math.random()*0.5, size: Math.random()*2
-            });
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            for(let i=0; i<100; i++) dots.push({ x: Math.random()*bgCanvas.width, y: Math.random()*bgCanvas.height, v: Math.random()*0.3, size: Math.random()*1.5 });
         }
         function drawDots() {
             ctx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-            ctx.fillStyle = 'rgba(0, 195, 255, 0.6)';
-            dots.forEach(d => {
-                d.y -= d.v; if(d.y < 0) d.y = bgCanvas.height;
-                ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI*2); ctx.fill();
-            });
+            ctx.fillStyle = 'rgba(0, 195, 255, 0.4)';
+            dots.forEach(d => { d.y -= d.v; if(d.y < 0) d.y = bgCanvas.height; ctx.beginPath(); ctx.arc(d.x, d.y, d.size, 0, Math.PI*2); ctx.fill(); });
             requestAnimationFrame(drawDots);
         }
         initDots(); drawDots();
 
-        // 4. 正式启动右侧李医生
+        // 4. 加载李医生
         const client = new CozeWebSDK.WebChatClient({
             config: { bot_id: '7608863077597626394' },
             componentProps: { title: '李医生口腔诊室', layout: 'pc' },
@@ -82,8 +91,7 @@
                 token: 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w',
                 onRefreshToken: () => 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w'
             },
-            // 【关键】喂入随机ID，确保后台“长期记忆”失效
-            userInfo: { id: freshId, name: '初诊访客' },
+            userInfo: { id: freshId, name: '初诊访客' }, // 【第二道保险：强制换号】
             ui: { asstBtn: { isNeed: false } }
         });
         client.showChatBot();
