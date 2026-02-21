@@ -2,32 +2,15 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>李医生数字诊室</title>
+    <title>李医生数字诊室 · 极客测试版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jose/4.14.4/index.umd.min.js"></script>
     <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; display: flex; }
-
-        /* 1. 调整布局：图片区域扩大到 75%，把分界线推向右侧 */
-        .left-poster {
-            width: 75%; 
-            height: 100%;
-            overflow: hidden;
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .left-poster img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: center right; /* 图片内容向右对齐 */
-        }
-
-        /* 2. 隐藏气泡，确保只显示中间/右侧对话框 */
+        .left-poster { width: 80%; height: 100%; overflow: hidden; border-right: 1px solid rgba(255,255,255,0.1); }
+        .left-poster img { width: 100%; height: 100%; object-fit: cover; object-position: 75% center; opacity: 0.8; }
         .coze-web-sdk-bubble-icon { display: none !important; }
-        .coze-web-sdk-container {
-            right: 20px !important;
-            bottom: 20px !important;
-            z-index: 1000 !important;
-        }
+        .coze-web-sdk-container { right: 20px !important; bottom: 20px !important; z-index: 1000 !important; }
     </style>
 </head>
 <body>
@@ -36,33 +19,95 @@
     </div>
 
     <script>
-        // 【核心补丁】暴力抹除：除了缓存，连 Cookie 也要清除，彻底切断会话
-        const nukeMemory = () => {
-            localStorage.clear(); sessionStorage.clear();
-            document.cookie.split(";").forEach(c => {
-                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-            });
+        // ==========================================
+        // 🔐 核心配置（仅限测试，公私钥已注入）
+        // ==========================================
+        const COZE_CONFIG = {
+            appId: "98413940235942673107639473050914.app.coze", // 你的 App ID
+            kid: "Lz_Ovr855eHfMWrxvaSoas97mnDfXakqemD2LWmTnmc",    // 你的公钥 ID
+            // 你的 RSA 私钥
+            privateKeyPem: `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDENzcVeH36ImNL
+8DkoXUJzyR2bkqSVkdutszpjmBH4ZT8MwTXKp8iS8LFatIXXeDqvhtK3kwm22kwx
+WjZaC2I7/c8QQQRiD9+yZRr128s61To1iGwXG1rE1HIUnypuoJmfxOXEfcyoYGRK
+7Z/zL1Kc6DmE/kL4MKUXaGP2/YFdYOhqlkUEcVQ3H0/4XUvQ99hpQp/zFnFJ6x+g
+ykQKc4+LmCggPnZkagYT4oZgmhA9rT/5xYF4T4WE4p5ZXy1Qqe7uhbaMM4CxfXR4
+6s4MvcUoJyckSn7TH/lZXqmpSjScezDbg/W/DW9zT1yrrAKtkB53VKp5l1kXBRF2
+jpCf0zhVAgMBAAECggEAA9v/9+qxpz62ApUdxrFSgInRsx221SAakk4FBYorVlFF
+fkGubKDd66TGbd3A1GL8XB36g8GL+1FlYylRvULEKQc3vRHbHUOpkOFD671dDLhY
+QTVm+auTa21jT6XTm5WKMZyMyWkRCLUAQmhuN2x0aa4rc9x3CQzJ5OefSbxYQLPB
+rKuc87IwZQUYenayFNntfDCw08fqZeM0ONVdj9LYGNTWyQOIrO1M9XS8OV+rvZdj
+AmjC13n58F/iS8AFpTjjlcNowgwyfgH44cxlsQFtFdsc4DySTgF1QuY2bLfoTPSm
+bywBrjJuKhMLShUwSpko2s2JyFucsNnffi5wT0SdEQKBgQDwd00BqjkBB2EACd4O
+Y4CRlL87XJ0uYfoveLdKPAmILZVDMMUxFaUSZvhuIRdM9YkCYq5glEUsgImfDW5y
+ACxe6g+SfVOMzNiEN4D7pmqwV+qGpOdBA56Pf7/O0sD9cdmyZq78c91EUhaed8r0
+x0xWD20ocZzD4zMV6QzMrgmGEQKBgQDQ5CA4BU1eN3sMU+e9+CnYy2cKNmJtUMeP
+C6/08+r2ioT4pUEwe5ZVlPcG+nhNzMxU/E+CeSwiwCAa++wqNiPQzxH0dpcoztr/
+krZzvQm2PFfEx/wh18ZF8UdKBpRzxn+nvXXTeG0Yblg8z+aAPl8jif6lsJkDT7C/
+sfFl3kf6BQKBgCTsPJ/H0m7tAiDuYvFUp/Yyn9Zulxf7JV5Kq+IzK8eEMEob3/t0
+dl9H/ldyr1A612nNWzcrLR/zMK6CcnYAvs9oIzH8GmshPRG4MA7z86fWKAW6pmOe
+OaeRFxOb2tRPufyhtba/17bY3+4/OKOzQm5oeftezpJpfXucyEFZa87xAoGBAMot
+sj1mbF6fZjolT6wfcClDnURWJOfXAn8h+bklCCp9IXwjPjg1tei5WGpprFzotnAf
+ELmgnCY6PBjB8e9dHUcx1Bf/XAiERZSNpIfa1HaMawqr4Q3EcUQq5ivwuGhiHBX3
+Gv6FlVnLGx4ovtkrBRw5qL0ncsGwtMqk6JcHEDUdAoGAApiaWc4o2pSraICGTrbG
+0phDqeBG8K8Ve7CZ4G6Uv26DCjaJ/WO0aDtkyCxg/+8y9+0pptKyxhXsCuWv3Gtt
+svCUgjW8HFsL+DS5Fgguy0TRTPwTEUX0JTMgJfbBQ1CUcueJ9F4q4j39FYfNAZZQ
+XcJOBW3DpsqgvLGvIpLK/6E=
+-----END PRIVATE KEY-----`
         };
-        nukeMemory();
 
-        // 随机生成一个全新的“临时身份证”
-        const freshId = 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        // ==========================================
+        // ⚙️ JWT 生成算法：实现真正的会话隔离
+        // ==========================================
+        async function generateCozeJWT() {
+            try {
+                // 1. 转换私钥格式
+                const privateKey = await jose.importPKCS8(COZE_CONFIG.privateKeyPem, 'RS256');
+                
+                // 2. 准备 Payload：这里加入随机的 session_name 实现失忆
+                const now = Math.floor(Date.now() / 1000);
+                const sessionName = 's_' + Date.now() + Math.random().toString(36).substr(2, 6);
+                
+                const jwt = await new jose.SignJWT({
+                    iss: COZE_CONFIG.appId,
+                    aud: "api.coze.cn",
+                    jti: Math.random().toString(36).substr(2, 32),
+                    iat: now,
+                    exp: now + 3600,
+                    session_name: sessionName // 🔑 关键：这就是失忆灵药！
+                })
+                .setProtectedHeader({ alg: 'RS256', kid: COZE_CONFIG.kid, typ: 'JWT' })
+                .sign(privateKey);
+                
+                console.log("✅ JWT 已生成，新会话启动:", sessionName);
+                return jwt;
+            } catch (err) {
+                console.error("❌ JWT 生成失败:", err);
+            }
+        }
 
-        const client = new CozeWebSDK.WebChatClient({
-            config: { bot_id: '7608863077597626394' },
-            componentProps: { title: '李医生数字诊室', layout: 'pc' },
-            auth: {
-                type: 'token',
-                token: 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w',
-                // 【必须补齐】解决 image_6dd537.png 里的报错
-                onRefreshToken: () => 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w'
-            },
-            userInfo: { id: freshId, name: '访客' },
-            ui: { asstBtn: { isNeed: false } }
-        });
+        // ==========================================
+        // 🚀 初始化 SDK
+        // ==========================================
+        async function initLiDoctor() {
+            const firstToken = await generateCozeJWT();
+            
+            const client = new CozeWebSDK.WebChatClient({
+                config: { bot_id: '7608863077597626394' },
+                componentProps: { title: '李医生数字诊室', layout: 'pc' },
+                auth: {
+                    type: 'token',
+                    token: firstToken,
+                    onRefreshToken: generateCozeJWT // 每次令牌过期都会生成新的 session_name
+                },
+                userInfo: { id: 'patient_test', name: '访客' },
+                ui: { asstBtn: { isNeed: false } }
+            });
 
-        // 自动弹窗
-        setTimeout(() => { if (client.showChatBot) client.showChatBot(); }, 1200);
+            setTimeout(() => { if (client.showChatBot) client.showChatBot(); }, 1000);
+        }
+
+        initLiDoctor();
     </script>
 </body>
 </html>
