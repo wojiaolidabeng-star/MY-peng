@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>李医生数字诊室</title>
-    <!-- 引入 Coze SDK -->
-    <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
     <style>
         body, html {
             margin: 0;
@@ -33,20 +31,102 @@
             object-position: center right;
         }
 
-        /* 右侧对话框区域 */
-        .coze-web-sdk-container {
-            right: 0 !important;
-            bottom: 0 !important;
-            left: auto !important;
-            top: 0 !important;
-            width: 25% !important;
-            height: 100% !important;
-            z-index: 1000 !important;
+        /* 右侧对话区域 */
+        .chat-area {
+            width: 25%;
+            height: 100%;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
 
-        /* 隐藏气泡按钮 */
-        .coze-web-sdk-bubble-icon {
-            display: none !important;
+        .chat-header {
+            background: #2a2a2a;
+            padding: 15px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 10px;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: #4CAF50;
+            color: white;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: #3a3a3a;
+            color: white;
+        }
+
+        .chat-input-area {
+            padding: 15px;
+            background: #2a2a2a;
+            border-top: 1px solid #3a3a3a;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #3a3a3a;
+            border-radius: 20px;
+            background: #1a1a1a;
+            color: white;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: #4CAF50;
+        }
+
+        .send-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .send-button:hover {
+            background: #45a049;
+        }
+
+        .send-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .typing {
+            color: #888;
+            font-style: italic;
+            font-size: 12px;
+            margin-left: 10px;
         }
     </style>
 </head>
@@ -56,9 +136,23 @@
         <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=2070&auto=format&fit=crop" alt="诊室预览">
     </div>
 
+    <!-- 右侧对话区域 -->
+    <div class="chat-area">
+        <div class="chat-header">
+            李医生数字诊室
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+            <div class="input-container">
+                <input type="text" class="chat-input" id="chatInput" placeholder="请描述您的症状..." autofocus>
+                <button class="send-button" id="sendButton">发送</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ============================================
-        // 配置区域
+        // 配置
         // ============================================
         const COZE_CONFIG = {
             botId: '7608863077597626394',
@@ -66,7 +160,7 @@
         };
 
         // ============================================
-        // 会话管理：为每个用户/设备生成唯一 ID
+        // 会话管理
         // ============================================
         let userSessionId = localStorage.getItem('dr_chatbot_session_id');
 
@@ -77,10 +171,62 @@
 
         console.log('=== 李医生数字诊室 ===');
         console.log('会话ID:', userSessionId);
-        console.log('提示：不同用户会有不同的会话ID');
 
         // ============================================
-        // 尝试通过 API 创建独立会话
+        // 会话 ID 管理（用于 Coze API）
+        // ============================================
+        let conversationId = null;
+        let conversationHistory = JSON.parse(localStorage.getItem('dr_chatbot_history') || '{}');
+
+        // 为当前会话获取或创建历史
+        if (!conversationHistory[userSessionId]) {
+            conversationHistory[userSessionId] = [];
+        }
+
+        const currentHistory = conversationHistory[userSessionId];
+
+        // 保存历史
+        function saveHistory() {
+            localStorage.setItem('dr_chatbot_history', JSON.stringify(conversationHistory));
+        }
+
+        // ============================================
+        // UI 元素
+        // ============================================
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+
+        // ============================================
+        // 显示消息
+        // ============================================
+        function addMessage(role, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.textContent = content;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // 添加到历史
+            currentHistory.push({ role, content, time: Date.now() });
+            saveHistory();
+        }
+
+        // ============================================
+        // 加载历史消息
+        // ============================================
+        function loadHistory() {
+            currentHistory.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.role}`;
+                messageDiv.textContent = msg.content;
+                chatMessages.appendChild(messageDiv);
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ============================================
+        // 创建会话
         // ============================================
         async function createConversation() {
             try {
@@ -91,90 +237,152 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        bot_id: COZE_CONFIG.botId,
-                        // 尝试用会话 ID 作为会话标识
-                        // 注意：这个字段可能不是官方支持的，只是尝试
+                        bot_id: COZE_CONFIG.botId
                     })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('✅ 创建会话成功:', data);
-                    return data.data.id;
+                    conversationId = data.data.id;
+                    console.log('✅ 创建会话成功:', conversationId);
+                    return conversationId;
                 } else {
-                    console.log('⚠️ API 创建会话失败，使用默认会话');
+                    console.error('❌ 创建会话失败:', await response.text());
                     return null;
                 }
             } catch (error) {
-                console.log('⚠️ 创建会话出错，使用默认会话:', error.message);
+                console.error('❌ 创建会话出错:', error);
                 return null;
             }
         }
 
         // ============================================
-        // 初始化 Coze SDK
+        // 发送消息到 Coze
         // ============================================
-        async function initChat() {
+        async function sendMessage(content) {
+            // 添加用户消息到界面
+            addMessage('user', content);
+
+            // 禁用输入
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+
+            // 显示"正在输入..."
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing';
+            typingDiv.textContent = '李医生正在思考...';
+            typingDiv.id = 'typing';
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
             try {
-                // 尝试创建会话
-                const conversationId = await createConversation();
-
-                const config = {
-                    config: {
-                        bot_id: COZE_CONFIG.botId
-                    },
-                    componentProps: {
-                        title: '李医生数字诊室',
-                        layout: 'pc'
-                    },
-                    auth: {
-                        type: 'token',
-                        token: COZE_CONFIG.personalAccessToken,
-                        onRefreshToken: () => COZE_CONFIG.personalAccessToken
-                    },
-                    userInfo: {
-                        id: userSessionId,
-                        name: '患者'
-                    },
-                    ui: {
-                        asstBtn: {
-                            isNeed: false
-                        }
-                    }
-                };
-
-                // 如果创建了会话 ID，尝试传入（可能不支持）
-                if (conversationId) {
-                    config.config.conversation_id = conversationId;
+                // 如果没有会话 ID，先创建
+                if (!conversationId) {
+                    await createConversation();
                 }
 
-                const client = new CozeWebSDK.WebChatClient(config);
+                // 发送消息
+                const response = await fetch('https://api.coze.cn/v1/chat/send', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${COZE_CONFIG.personalAccessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        bot_id: COZE_CONFIG.botId,
+                        conversation_id: conversationId,
+                        additional_messages: [
+                            {
+                                role: 'user',
+                                content: content,
+                                content_type: 'text'
+                            }
+                        ]
+                    })
+                });
 
-                console.log('✅ SDK 初始化成功');
+                if (response.ok) {
+                    const data = await response.json();
 
-                // 自动打开对话框
-                setTimeout(() => {
-                    if (client.showChatBot) {
-                        client.showChatBot();
-                        console.log('✅ 对话框已打开');
+                    // 等待响应
+                    const chatId = data.data.id;
+                    let result = null;
+                    let maxAttempts = 60; // 最多等60秒
+                    let attempts = 0;
+
+                    while (!result && attempts < maxAttempts) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+
+                        const statusResponse = await fetch(`https://api.coze.cn/v1/chat/retrieve?chat_id=${chatId}&conversation_id=${conversationId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${COZE_CONFIG.personalAccessToken}`
+                            }
+                        });
+
+                        if (statusResponse.ok) {
+                            const statusData = await statusResponse.json();
+
+                            if (statusData.data.status === 'completed') {
+                                result = statusData.data;
+                            } else if (statusData.data.status === 'failed') {
+                                throw new Error('AI 回复失败');
+                            }
+                        }
+
+                        attempts++;
                     }
-                }, 1000);
 
+                    if (result) {
+                        // 提取回答
+                        const answer = result.data.messages[result.data.messages.length - 1].content;
+                        addMessage('assistant', answer);
+                    } else {
+                        addMessage('assistant', '抱歉，回复超时，请重试。');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    console.error('❌ 发送消息失败:', errorText);
+                    addMessage('assistant', '抱歉，服务暂时不可用，请稍后重试。');
+                }
             } catch (error) {
-                console.error('❌ 初始化失败:', error);
-                console.error('错误详情:', error.message);
+                console.error('❌ 发送消息出错:', error);
+                addMessage('assistant', '抱歉，发生错误，请稍后重试。');
+            } finally {
+                // 移除"正在输入..."
+                const typing = document.getElementById('typing');
+                if (typing) typing.remove();
+
+                // 启用输入
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                chatInput.focus();
             }
         }
 
-        // 启动
-        initChat();
+        // ============================================
+        // 事件处理
+        // ============================================
+        sendButton.addEventListener('click', () => {
+            const content = chatInput.value.trim();
+            if (content) {
+                sendMessage(content);
+                chatInput.value = '';
+            }
+        });
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendButton.click();
+            }
+        });
 
         // ============================================
-        // 错误处理
+        // 初始化
         // ============================================
-        window.addEventListener('error', (e) => {
-            console.error('发生错误:', e.message);
-        });
+        loadHistory();
+
+        // 预先创建会话
+        createConversation();
     </script>
 </body>
 </html>
