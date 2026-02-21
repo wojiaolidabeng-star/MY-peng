@@ -1,94 +1,20 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>李医生术后关怀助手 - 数字化口腔诊室</title>
-    <style>
-        /* 页面基础样式优化 */
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            height: 100%; 
-            width: 100%;
-            overflow: hidden;
-            background-color: #f7f9fc; /* 淡淡的诊所蓝背景 */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
+<script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/builder-web-sdk/0.1.1-beta.1/dist/umd/index.js"></script>
+<script>
+  // 优化点 1：生成一个随机的访客 ID，解决聊天记录串门问题
+  const randomUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 
-        /* 聊天容器全屏适配 */
-        #coze-app-container { 
-            width: 100vw; 
-            height: 100vh; 
-        }
-
-        /* 微信环境下的加载提示（可选） */
-        .loading-tip {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #999;
-            font-size: 14px;
-            z-index: -1;
-        }
-    </style>
-</head>
-<body>
-    <div class="loading-tip">正在连接李医生诊室...</div>
-    
-    <div id="coze-app-container"></div>
-
-    <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/builder-web-sdk/0.1.1-beta.1/dist/umd/index.js"></script>
-    
-    <script>
-      /**
-       * 核心优化：解决聊天记录混淆
-       * 逻辑：每次打开页面时，检查浏览器缓存中是否已有 ID，如果没有则生成一个新的随机 ID。
-       * 这样既能保证同一个病人在短时间内刷新页面能看到自己的记录，又能保证不同病人之间完全隔离。
-       */
-      function getUniqueUserId() {
-          let userId = localStorage.getItem('coze_user_id');
-          if (!userId) {
-              userId = 'patient_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-              localStorage.setItem('coze_user_id', userId);
-          }
-          return userId;
-      }
-
-      const currentUserId = getUniqueUserId();
-
-      // 初始化 SDK
-      new CozeWebSDK.AppWebSDK({
-        // 您的正式授权令牌
-        token: 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w',
-        
-        // 您的正式客户端 ID
-        appId: '58523127823005805621998481591963.app.coze',
-        
-        container: '#coze-app-container',
-        
-        config: {
-          // 您的 Bot ID
-          bot_id: '7608863077597626394',
-        },
-        
-        userInfo: { 
-            id: currentUserId, // 使用动态生成的唯一 ID
-            nickname: '访客' 
-        },
-        
-        // 界面配置优化
-        ui: {
-            base: {
-                icon: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/hel_h_lp/ljhwZ_lp/202309/icon.png', // 可以换成你诊所的 Logo
-                layout: 'pc', // 在手机上会自动适配移动端布局
-            },
-            footer: {
-                isShow: false, // 隐藏底部的 "Powered by Coze" (需发布页权限支持)
-            }
-        }
-      });
-    </script>
-</body>
-</html>
+  new CozeWebSDK.AppWebSDK({
+    // 你的正确参数
+    token: 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w',
+    appId: '58523127823005805621998481591963.app.coze', 
+    container: '#app',
+    config: {
+      bot_id: '7608863077597626394',
+    },
+    // 优化点 2：动态赋值用户信息
+    userInfo: { 
+        id: randomUserId, 
+        nickname: '访客' 
+    }
+  });
+</script>
