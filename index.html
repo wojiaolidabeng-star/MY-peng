@@ -65,6 +65,7 @@
             border-radius: 10px;
             word-wrap: break-word;
             line-height: 1.5;
+            white-space: pre-wrap;
         }
 
         .message.user {
@@ -258,39 +259,6 @@
         }
 
         // ============================================
-        // 从消息中提取文本内容
-        // ============================================
-        function extractMessageContent(msg) {
-            console.log('解析消息:', msg);
-
-            // 尝试不同的字段
-            if (msg.content) {
-                return msg.content;
-            }
-            if (msg.content_text) {
-                return msg.content_text;
-            }
-            if (msg.data) {
-                // data 可能是 JSON 字符串
-                try {
-                    const parsedData = JSON.parse(msg.data);
-                    if (parsedData.FinData) {
-                        return parsedData.FinData;
-                    }
-                } catch (e) {
-                    // 不是 JSON，直接返回
-                    return msg.data;
-                }
-            }
-            if (msg.content_type === 'text' && msg.content) {
-                return msg.content;
-            }
-
-            // 都没有，返回整个消息的字符串形式
-            return JSON.stringify(msg);
-        }
-
-        // ============================================
         // 发送消息到 Coze
         // ============================================
         async function sendMessage(content) {
@@ -327,7 +295,7 @@
                         conversation_id: conversationId,
                         user: userSessionId,
                         query: content,
-                        stream: true  // 改为流式响应
+                        stream: true  // 流式响应
                     })
                 });
 
@@ -336,38 +304,43 @@
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let fullContent = '';
+                    let assistantMessageDiv = null;
+
+                    // 创建空的助手消息
+                    assistantMessageDiv = document.createElement('div');
+                    assistantMessageDiv.className = 'message assistant';
+                    chatMessages.appendChild(assistantMessageDiv);
 
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
 
                         const chunk = decoder.decode(value);
-                        console.log('收到数据块:', chunk);
 
-                        // 解析 SSE 格式
+                        // 解析 SSE 格式（每行是 data: {...}）
                         const lines = chunk.split('\n');
                         for (const line of lines) {
                             if (line.startsWith('data: ')) {
-                                const dataStr = line.slice(6);
+                                const dataStr = line.slice(6).trim();
                                 try {
                                     const data = JSON.parse(dataStr);
-                                    console.log('解析的数据:', data);
 
-                                    // 提取内容
-                                    if (data.msg_type === 'generate_answer' && data.data) {
-                                        try {
-                                            const contentData = JSON.parse(data.data);
-                                            if (contentData.FinData) {
-                                                fullContent += contentData.FinData;
-                                            }
-                                        } catch (e) {
-                                            // data.data 可能不是 JSON
-                                            fullContent += data.data;
-                                        }
-                                    } else if (data.content) {
-                                        fullContent += data.content;
-                                    } else if (data.result) {
-                                        fullContent += data.result;
+                                    // 提取内容：从 message.content 字段
+                                    if (data.event === 'message' && data.message && data.message.content) {
+                                        const newContent = data.message.content;
+                                        fullContent += newContent;
+
+                                        // 实时更新消息显示
+                                        assistantMessageDiv.textContent = fullContent;
+                                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                                    }
+
+                                    // 检查是否完成
+                                    if (data.is_finish) {
+                                        console.log('✅ 响应完成');
+                                        // 保存到历史
+                                        currentHistory.push({ role: 'assistant', content: fullContent, time: Date.now() });
+                                        saveHistory();
                                     }
                                 } catch (e) {
                                     console.warn('解析 SSE 数据失败:', e, dataStr);
@@ -376,25 +349,27 @@
                         }
                     }
 
-                    if (fullContent) {
-                        addMessage('assistant', fullContent);
-                    } else {
-                        console.warn('未收到完整内容');
-                        addMessage('assistant', '抱歉，没有收到回复。');
-                    }
+                    // 移除"正在输入..."
+                    const typing = document.getElementById('typing');
+                    if (typing) typing.remove();
+
                 } else {
                     const errorText = await response.text();
                     console.error('❌ 发送消息失败:', errorText);
                     addMessage('assistant', '抱歉，服务暂时不可用，请稍后重试。');
+
+                    // 移除"正在输入..."
+                    const typing = document.getElementById('typing');
+                    if (typing) typing.remove();
                 }
             } catch (error) {
                 console.error('❌ 发送消息出错:', error);
                 addMessage('assistant', '抱歉，发生错误，请稍后重试。');
-            } finally {
+
                 // 移除"正在输入..."
                 const typing = document.getElementById('typing');
                 if (typing) typing.remove();
-
+            } finally {
                 // 启用输入
                 chatInput.disabled = false;
                 sendButton.disabled = false;
