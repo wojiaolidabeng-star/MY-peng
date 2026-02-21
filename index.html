@@ -2,43 +2,92 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>李医生术后关怀助手</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极客口腔医生 · 智能诊疗助手</title>
+    <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+        #canvas { position: absolute; width: 100%; height: 100%; z-index: 1; }
+
+        /* 核心逻辑：直接把 Coze 的对话框样式重写为我们的“玻璃框” */
+        .coze-web-sdk-container {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 90vw !important;
+            max-width: 1000px !important;
+            height: 80vh !important;
+            max-height: 800px !important;
+            z-index: 9999 !important;
+            border-radius: 24px !important;
+            /* 玻璃拟态效果 */
+            background: rgba(255, 255, 255, 0.05) !important;
+            backdrop-filter: blur(15px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            box-shadow: 0 0 30px rgba(0, 195, 255, 0.3) !important;
+            overflow: hidden;
+        }
+
+        /* 隐藏掉右下角那个烦人的小气泡按钮 */
+        .coze-web-sdk-bubble-icon { display: none !important; }
+    </style>
 </head>
 <body>
-    <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
-    <script>
-      // 隐私保护逻辑：为每个访客生成独立 ID，解决聊天记录串门问题
-      function getUserId() {
-          let id = localStorage.getItem('my_doctor_li_id');
-          if (!id) {
-              id = 'p_' + Math.random().toString(36).substr(2, 9);
-              localStorage.setItem('my_doctor_li_id', id);
-          }
-          return id;
-      }
+    <canvas id="canvas"></canvas>
 
-      new CozeWebSDK.WebChatClient({
-        config: {
-          // 您的 Bot ID
-          bot_id: '7608863077597626394',
-        },
-        componentProps: {
-          title: '李医生术后关怀助手',
-        },
-        auth: {
-          type: 'token',
-          // 您的长令牌
-          token: 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w',
-          onRefreshToken: function () {
-            return 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w'
-          }
-        },
-        // 将独立 ID 传给系统
-        userInfo: {
-            id: getUserId(),
-            nickname: '访客'
+    <script>
+        // 1. 生成绝对随机 ID，确保每次刷新页面都彻底“失忆”
+        const freshId = 'patient_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        console.log("✅ 已生成全新患者ID:", freshId);
+
+        // 2. 初始化 3D 粒子背景（极简高性能版）
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function initCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            for(let i=0; i<100; i++) particles.push({
+                x: Math.random()*canvas.width, y: Math.random()*canvas.height,
+                vx: (Math.random()-0.5)*0.5, vy: (Math.random()-0.5)*0.5, size: Math.random()*2
+            });
         }
-      });
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00c3ff';
+            particles.forEach(p => {
+                p.x += p.vx; p.y += p.vy;
+                if(p.x<0 || p.x>canvas.width) p.vx *= -1;
+                if(p.y<0 || p.y>canvas.height) p.vy *= -1;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+            requestAnimationFrame(animate);
+        }
+        window.onresize = initCanvas;
+        initCanvas(); animate();
+
+        // 3. 正式启动李医生 SDK
+        const client = new CozeWebSDK.WebChatClient({
+            config: { bot_id: '7608863077597626394' },
+            componentProps: { title: '李医生口腔诊室', layout: 'pc' },
+            auth: {
+                type: 'token',
+                token: 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w',
+                onRefreshToken: () => 'pat_dT8ZNCudSDhO2DRLnZMtuuZNhBwOFt4gTbNjr25yPK6FtkC5hK9VmehDLKuSqR7w'
+            },
+            // 关键：在这里喂入 ID 解决记忆残留
+            userInfo: { id: freshId, name: '初诊患者' },
+            ui: { asstBtn: { isNeed: false } }
+        });
+
+        // 4. 强行开门，确保李医生直接坐在中间见客
+        setTimeout(() => {
+            if (client.showChatBot) {
+                client.showChatBot();
+                console.log("✅ 李医生已就位！");
+            }
+        }, 500);
     </script>
 </body>
 </html>
