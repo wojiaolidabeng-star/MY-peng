@@ -2,31 +2,71 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>李医生数字诊室 · 极客测试版</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jose/4.14.4/index.umd.min.js"></script>
+    <title>李医生数字诊室</title>
+    <!-- 引入 Coze SDK -->
     <script src="https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js"></script>
+    <!-- 引入 jsrsasign 用于生成 JWT -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/8.0.20/jsrsasign-all-min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; display: flex; }
-        .left-poster { width: 80%; height: 100%; overflow: hidden; border-right: 1px solid rgba(255,255,255,0.1); }
-        .left-poster img { width: 100%; height: 100%; object-fit: cover; object-position: 75% center; opacity: 0.8; }
-        .coze-web-sdk-bubble-icon { display: none !important; }
-        .coze-web-sdk-container { right: 20px !important; bottom: 20px !important; z-index: 1000 !important; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* 左侧海报区域 - 75% 宽度 */
+        .left-poster {
+            width: 75%;
+            height: 100%;
+            overflow: hidden;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .left-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center right;
+        }
+
+        /* 右侧对话框区域 - 由 Coze SDK 自动占据 */
+        .coze-web-sdk-container {
+            right: 0 !important;
+            bottom: 0 !important;
+            left: auto !important;
+            top: 0 !important;
+            width: 25% !important;
+            height: 100% !important;
+            z-index: 1000 !important;
+        }
+
+        /* 隐藏气泡按钮 */
+        .coze-web-sdk-bubble-icon {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
+    <!-- 左侧海报 -->
     <div class="left-poster">
         <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?q=80&w=2070&auto=format&fit=crop" alt="诊室预览">
     </div>
 
     <script>
-        // ==========================================
-        // 🔐 核心配置（仅限测试，公私钥已注入）
-        // ==========================================
+        // ============================================
+        // 配置区域
+        // ============================================
         const COZE_CONFIG = {
-            appId: "98413940235942673107639473050914.app.coze", // 你的 App ID
-            kid: "Lz_Ovr855eHfMWrxvaSoas97mnDfXakqemD2LWmTnmc",    // 你的公钥 ID
-            // 你的 RSA 私钥
-            privateKeyPem: `-----BEGIN PRIVATE KEY-----
+            botId: '7608863077597626394',
+            appId: '98413940235942673107639473050914.app.coze',
+            publicKey: 'Lz_Ovr855eHfMWrxvaSoas97mnDfXakqemD2LWmTnmc',
+            privateKey: `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDENzcVeH36ImNL
 8DkoXUJzyR2bkqSVkdutszpjmBH4ZT8MwTXKp8iS8LFatIXXeDqvhtK3kwm22kwx
 WjZaC2I7/c8QQQRiD9+yZRr128s61To1iGwXG1rE1HIUnypuoJmfxOXEfcyoYGRK
@@ -56,58 +96,87 @@ XcJOBW3DpsqgvLGvIpLK/6E=
 -----END PRIVATE KEY-----`
         };
 
-        // ==========================================
-        // ⚙️ JWT 生成算法：实现真正的会话隔离
-        // ==========================================
-        async function generateCozeJWT() {
-            try {
-                // 1. 转换私钥格式
-                const privateKey = await jose.importPKCS8(COZE_CONFIG.privateKeyPem, 'RS256');
-                
-                // 2. 准备 Payload：这里加入随机的 session_name 实现失忆
-                const now = Math.floor(Date.now() / 1000);
-                const sessionName = 's_' + Date.now() + Math.random().toString(36).substr(2, 6);
-                
-                const jwt = await new jose.SignJWT({
-                    iss: COZE_CONFIG.appId,
-                    aud: "api.coze.cn",
-                    jti: Math.random().toString(36).substr(2, 32),
-                    iat: now,
-                    exp: now + 3600,
-                    session_name: sessionName // 🔑 关键：这就是失忆灵药！
-                })
-                .setProtectedHeader({ alg: 'RS256', kid: COZE_CONFIG.kid, typ: 'JWT' })
-                .sign(privateKey);
-                
-                console.log("✅ JWT 已生成，新会话启动:", sessionName);
-                return jwt;
-            } catch (err) {
-                console.error("❌ JWT 生成失败:", err);
+        // ============================================
+        // 会话管理：为每个用户生成唯一 ID
+        // ============================================
+        let userSessionId = localStorage.getItem('dr_chatbot_session_id');
+
+        if (!userSessionId) {
+            // 首次访问，生成新的会话 ID
+            userSessionId = 'patient_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('dr_chatbot_session_id', userSessionId);
+        }
+
+        console.log('=== 李医生数字诊室 ===');
+        console.log('会话ID (session_name):', userSessionId);
+
+        // ============================================
+        // 生成 JWT Token
+        // ============================================
+        function generateCozeJwt() {
+            const header = {
+                alg: 'RS256',
+                typ: 'JWT',
+                kid: COZE_CONFIG.publicKey
+            };
+
+            const currentTime = Math.floor(Date.now() / 1000);
+            const payload = {
+                iss: COZE_CONFIG.appId,
+                aud: 'api.coze.cn',
+                jti: Math.random().toString(36).substr(2, 32) + Date.now(),
+                iat: currentTime,
+                exp: currentTime + 3600,  // Token 有效期 1 小时
+                session_name: userSessionId  // 【关键】会话隔离的核心！
+            };
+
+            return KJUR.jws.JWS.sign(
+                header.alg,
+                JSON.stringify(header),
+                JSON.stringify(payload),
+                COZE_CONFIG.privateKey
+            );
+        }
+
+        // ============================================
+        // 初始化 Coze SDK
+        // ============================================
+        const client = new CozeWebSDK.WebChatClient({
+            config: {
+                bot_id: COZE_CONFIG.botId
+            },
+            componentProps: {
+                title: '李医生数字诊室',
+                layout: 'pc'
+            },
+            auth: {
+                type: 'jwt_token',  // 使用 JWT 认证
+                token: generateCozeJwt(),
+                onRefreshToken: () => {
+                    console.log('Token 刷新');
+                    return generateCozeJwt();
+                }
+            },
+            userInfo: {
+                id: userSessionId,
+                name: '患者'
+            },
+            ui: {
+                asstBtn: {
+                    isNeed: false  // 隐藏按钮
+                }
             }
-        }
+        });
 
-        // ==========================================
-        // 🚀 初始化 SDK
-        // ==========================================
-        async function initLiDoctor() {
-            const firstToken = await generateCozeJWT();
-            
-            const client = new CozeWebSDK.WebChatClient({
-                config: { bot_id: '7608863077597626394' },
-                componentProps: { title: '李医生数字诊室', layout: 'pc' },
-                auth: {
-                    type: 'token',
-                    token: firstToken,
-                    onRefreshToken: generateCozeJWT // 每次令牌过期都会生成新的 session_name
-                },
-                userInfo: { id: 'patient_test', name: '访客' },
-                ui: { asstBtn: { isNeed: false } }
-            });
-
-            setTimeout(() => { if (client.showChatBot) client.showChatBot(); }, 1000);
-        }
-
-        initLiDoctor();
+        // ============================================
+        // 自动打开对话框
+        // ============================================
+        setTimeout(() => {
+            if (client.showChatBot) {
+                client.showChatBot();
+                console.log('✅ 对话框已打开');
+            }
+        }, 1000);
     </script>
 </body>
 </html>
