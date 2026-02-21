@@ -300,10 +300,20 @@
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('API 响应:', data);
 
-                    if (data.status === 'success' && data.result) {
-                        const answer = data.result;
-                        addMessage('assistant', answer);
+                    // 根据实际返回结构解析
+                    if (data.code === 0 && data.messages && data.messages.length > 0) {
+                        // 从 messages 数组中提取最后一条助手消息
+                        const assistantMessage = data.messages[data.messages.length - 1];
+                        if (assistantMessage && assistantMessage.content) {
+                            addMessage('assistant', assistantMessage.content);
+                        } else {
+                            addMessage('assistant', '抱歉，没有收到回复。');
+                        }
+                    } else if (data.status === 'success' && data.result) {
+                        // 兼容另一种返回结构
+                        addMessage('assistant', data.result);
                     } else {
                         console.error('❌ API 返回错误:', data);
                         addMessage('assistant', '抱歉，服务暂时不可用，请稍后重试。');
